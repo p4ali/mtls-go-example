@@ -79,6 +79,7 @@ mkdir -p 2_intermediate/newcerts
 touch 2_intermediate/index.txt
 echo "100212" > 2_intermediate/serial
 openssl ca -config openssl.cnf -extensions v3_intermediate_ca \
+        -batch \
         -passin pass:$2 \
         -days 3650 -notext -md sha256 \
         -in 2_intermediate/csr/intermediate.csr.pem \
@@ -133,6 +134,7 @@ echo Create the application certificate
 echo ---
 mkdir -p 3_application/certs
 openssl ca -config intermediate_openssl.cnf \
+      -batch \
       -passin pass:$2 \
       -extensions server_cert -days 375 -notext -md sha256 \
       -in 3_application/csr/$1.csr.pem \
@@ -182,6 +184,7 @@ echo Create the client certificate
 echo ---
 mkdir -p 4_client/certs
 openssl ca -config intermediate_openssl.cnf \
+      -batch \
       -passin pass:$2 \
       -extensions usr_cert -days 375 -notext -md sha256 \
       -in 4_client/csr/$1.csr.pem \
