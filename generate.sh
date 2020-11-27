@@ -19,6 +19,10 @@ if [[ $2 == "" ]]; then
   exit 1
 fi
 
+rm -rf $1
+mkdir -p $1
+cp *.cnf $1
+pushd $1
 
 echo 
 echo Generate the root key
@@ -29,7 +33,7 @@ openssl genrsa -aes256 -passout pass:$2 -out 1_root/private/ca.key.pem 4096
 chmod 444 1_root/private/ca.key.pem
 
 
-echo 
+echo
 echo Generate the root certificate
 echo ---
 mkdir -p 1_root/certs
@@ -44,12 +48,12 @@ openssl req -config openssl.cnf \
       -out 1_root/certs/ca.cert.pem
 
 
-echo 
+echo
 echo Verify root key
 echo ---
 openssl x509 -noout -text -in 1_root/certs/ca.cert.pem
 
-echo 
+echo
 echo Generate the key for the intermediary certificate
 echo ---
 mkdir -p 2_intermediate/private
@@ -60,18 +64,18 @@ openssl genrsa -aes256 \
 chmod 444 2_intermediate/private/intermediate.key.pem
 
 
-echo 
+echo
 echo Generate the signing request for the intermediary certificate
 echo ---
 mkdir -p 2_intermediate/csr
 openssl req -config openssl.cnf -new -sha256 \
       -passin pass:$2 \
-      -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=$1" \
+      -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=sub_ca.$1" \
       -key 2_intermediate/private/intermediate.key.pem \
       -out 2_intermediate/csr/intermediate.csr.pem
 
 
-echo 
+echo
 echo Sign the intermediary
 echo ---
 mkdir -p 2_intermediate/certs
@@ -88,7 +92,7 @@ openssl ca -config openssl.cnf -extensions v3_intermediate_ca \
 chmod 444 2_intermediate/certs/intermediate.cert.pem
 
 
-echo 
+echo
 echo Verify intermediary
 echo ---
 openssl x509 -noout -text \
@@ -98,7 +102,7 @@ openssl verify -CAfile 1_root/certs/ca.cert.pem \
       2_intermediate/certs/intermediate.cert.pem
 
 
-echo 
+echo
 echo Create the chain file
 echo ---
 cat 2_intermediate/certs/intermediate.cert.pem \
@@ -107,65 +111,67 @@ cat 2_intermediate/certs/intermediate.cert.pem \
 chmod 444 2_intermediate/certs/ca-chain.cert.pem
 
 
-echo 
+echo
 echo Create the application key
 echo ---
+app=server.$1
 mkdir -p 3_application/private
 openssl genrsa \
       -passout pass:$2 \
-    -out 3_application/private/$1.key.pem 2048
+    -out 3_application/private/$app.key.pem 2048
 
-chmod 444 3_application/private/$1.key.pem
+chmod 444 3_application/private/$app.key.pem
 
 
-echo 
+echo
 echo Create the application signing request
 echo ---
 mkdir -p 3_application/csr
 openssl req -config intermediate_openssl.cnf \
-      -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=$1" \
+      -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=$app" \
       -passin pass:$2 \
-      -key 3_application/private/$1.key.pem \
-      -new -sha256 -out 3_application/csr/$1.csr.pem
+      -key 3_application/private/$app.key.pem \
+      -new -sha256 -out 3_application/csr/$app.csr.pem
 
 
-echo 
+echo
 echo Create the application certificate
 echo ---
 mkdir -p 3_application/certs
 openssl ca -config intermediate_openssl.cnf \
       -batch \
       -passin pass:$2 \
-      -extensions server_cert -days 375 -notext -md sha256 \
-      -in 3_application/csr/$1.csr.pem \
-      -out 3_application/certs/$1.cert.pem
+      -extensions server_cert -days 1825 -notext -md sha256 \
+      -in 3_application/csr/$app.csr.pem \
+      -out 3_application/certs/$app.cert.pem
 
-chmod 444 3_application/certs/$1.cert.pem
+chmod 444 3_application/certs/$app.cert.pem
 
 
-echo 
+echo
 echo Validate the certificate
 echo ---
 openssl x509 -noout -text \
-      -in 3_application/certs/$1.cert.pem
+      -in 3_application/certs/$app.cert.pem
 
 
-echo 
+echo
 echo Validate the certificate has the correct chain of trust
 echo ---
 openssl verify -CAfile 2_intermediate/certs/ca-chain.cert.pem \
-      3_application/certs/$1.cert.pem
+      3_application/certs/$app.cert.pem
 
 
 echo
 echo Generate the client key
 echo ---
+client=client.$1
 mkdir -p 4_client/private
 openssl genrsa \
     -passout pass:$2 \
-    -out 4_client/private/$1.key.pem 2048
+    -out 4_client/private/$client.key.pem 2048
 
-chmod 444 4_client/private/$1.key.pem
+chmod 444 4_client/private/$client.key.pem
 
 
 echo
@@ -173,21 +179,37 @@ echo Generate the client signing request
 echo ---
 mkdir -p 4_client/csr
 openssl req -config intermediate_openssl.cnf \
-      -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=$1" \
+      -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=$client" \
       -passin pass:$2 \
-      -key 4_client/private/$1.key.pem \
-      -new -sha256 -out 4_client/csr/$1.csr.pem
+      -key 4_client/private/$client.key.pem \
+      -new -sha256 -out 4_client/csr/$client.csr.pem
 
 
-echo 
+echo
 echo Create the client certificate
 echo ---
 mkdir -p 4_client/certs
 openssl ca -config intermediate_openssl.cnf \
       -batch \
       -passin pass:$2 \
-      -extensions usr_cert -days 375 -notext -md sha256 \
-      -in 4_client/csr/$1.csr.pem \
-      -out 4_client/certs/$1.cert.pem
+      -extensions usr_cert -days 1825 -notext -md sha256 \
+      -in 4_client/csr/$client.csr.pem \
+      -out 4_client/certs/$client.cert.pem
 
-chmod 444 4_client/certs/$1.cert.pem
+chmod 444 4_client/certs/$client.cert.pem
+
+
+echo
+echo Validate the certificate
+echo ---
+openssl x509 -noout -text \
+      -in 4_client/certs/$client.cert.pem
+
+
+echo
+echo Validate the certificate has the correct chain of trust
+echo ---
+openssl verify -CAfile 2_intermediate/certs/ca-chain.cert.pem \
+      4_client/certs/$client.cert.pem
+
+popd
