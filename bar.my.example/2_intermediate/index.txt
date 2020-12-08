@@ -1,0 +1,2 @@
+V	251207042048Z		100212	unknown	/C=US/ST=Denial/L=Springfield/O=Dis/CN=server.bar.my.example
+V	251207042048Z		100213	unknown	/C=US/ST=Denial/L=Springfield/O=Dis/CN=client.bar.my.example
